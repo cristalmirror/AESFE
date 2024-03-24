@@ -2,6 +2,7 @@ use std::env;
 use std::io::{Read,Write};
 use std::fs::File;
 use aes::Aes128;
+use std::error::Error;
 use aes::cipher::{
     BlockCipher, BlockEncrypt, BlockDecrypt,
     KeyInit, generic_array::GenericArray,
@@ -9,6 +10,7 @@ use aes::cipher::{
 use typenum::U16;
 use std::io::Result;
 use colored::*;
+use rand::Rng;
 
 const BLOCK_SIZE: usize = 16;
 
@@ -28,7 +30,9 @@ impl EncryptDecryptObject {
     pub fn new() -> Self {
 	let key = GenericArray::from([0u8; 16]);
 	let block = GenericArray::from([42u8; 16]);
-	let blocks = vec![];
+	let blocks = vec![ "hola mundo, esto".as_bytes().to_vec(),  // Primer bloque de texto
+			    "y está encriptado".as_bytes().to_vec(), // Segundo bloque de texto
+	];
 	
 	EncryptDecryptObject {key, block, blocks}
     }
@@ -36,30 +40,49 @@ impl EncryptDecryptObject {
     pub fn open_file(&self,) {
 
     }
+
+    //generator of key
+    pub fn generate_random_key() -> GenericArray<u8, U16> {
+	let mut rng = rand::rngs::OsRng::default();
+	let mut key = GenericArray::from([0u8; 16]);
+	rng.fill(&mut key[..]);
+	key
+    }
     
    //calcula el porcentaje de bloques procesados
-   pub fn porcent_of_process_unit(&self, tam: usize) {
+   fn porcent_of_process_unit(&self, tam: usize) {
 	let message = "[ARCHIVE CRYPT]: *BLOCKS*";
 	let colorMes = message.blue();
-	let mut result = (tam / self.blocks.len()) * 100;
+	let mut result = (tam * 100) / self.blocks.len();
 	println!("{} {:?} %", colorMes, result);
     }
     
     /*function create to encrypt*/
-    pub fn encrypt(&self) -> Result<Vec<Vec<u8>>> {
+    pub fn encrypt(&mut self) -> Result<Vec<Vec<u8>>> {
 
+	//load key
+	self.key = Self::generate_random_key();
+	println!("{:?}",&self.key);
 	// Initialize cipher
 	let cipher = Aes128::new(&self.key);
-
 	//we create a vec for allocate the cipher blocks
 	let mut encrypted_blocks = Vec::new();
 	let mut cont: usize = 0;
 	//cipher each block of data
 	for _block in &self.blocks {
 
-	    let mut encrypted_data = vec![0u8; BLOCK_SIZE];
-	    cipher.encrypt_block(GenericArray::from_mut_slice(&mut encrypted_data));
-	    encrypted_blocks.push(encrypted_data);
+	    let mut padded_block = _block.clone(); // Copia el bloque original
+	    if padded_block.len() < BLOCK_SIZE {
+		// Si el bloque es más corto que 16 bytes, rellenarlo con ceros
+		padded_block.resize(BLOCK_SIZE, 0u8);
+	    } else if padded_block.len() > BLOCK_SIZE {
+		// Si el bloque es más largo que 16 bytes, truncarlo a 16 bytes
+		padded_block.truncate(BLOCK_SIZE);
+	    }
+	    
+	    let mut encrypted_data =GenericArray::clone_from_slice(&padded_block[..]);
+	    cipher.encrypt_block(&mut encrypted_data);
+	    encrypted_blocks.push(encrypted_data.to_vec());
 	}
 	Ok(encrypted_blocks)
     }
@@ -72,7 +95,7 @@ impl EncryptDecryptObject {
 /*main function*/
 fn main() {
     //definicion la instancia del objeto encriptador decriptador
-    let estructura = EncryptDecryptObject::new();
+    let mut estructura = EncryptDecryptObject::new();
 
     //tomamos los valores de los argumentos
     match env::args().nth(1).as_deref() {
