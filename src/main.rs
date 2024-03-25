@@ -1,5 +1,5 @@
 use std::env;
-use std::io::{Read,Write};
+use std::io::{Read, Write, BufRead, BufReader};
 use std::fs::File;
 use aes::Aes128;
 use std::error::Error;
@@ -30,15 +30,32 @@ impl EncryptDecryptObject {
     pub fn new() -> Self {
 	let key = GenericArray::from([0u8; 16]);
 	let block = GenericArray::from([42u8; 16]);
-	let blocks = vec![ "hola mundo, esto".as_bytes().to_vec(),  // Primer bloque de texto
-			    "y está encriptado".as_bytes().to_vec(), // Segundo bloque de texto
-	];
+	let blocks = vec![];
 	
 	EncryptDecryptObject {key, block, blocks}
     }
 
-    pub fn open_file(&self,) {
+    pub fn open_file(&mut self,file_name: &str) -> Result<Vec<Vec<u8>>> {
+	let file = File::open(file_name)?;
+	let reader = BufReader::new(file);
 
+	//process to part in blocks
+	for _block in reader.lines() {
+	    match _block {
+		Ok(line) => {
+		    let chars: Vec<_> = line.chars().collect();
+		    let chunks = chars.chunks(16);
+		    for chunk in chunks {
+			let bytes: Vec<u8> = chunk.iter().map(|&c| c as u8).collect();
+			&self.blocks.push(bytes);
+		    }
+		}
+		Err(err) => {
+		    eprintln!("[AESFE]: ***ERROR*** in line: {}",err);
+		}
+	    }
+	}
+	Ok(self.blocks.clone())
     }
 
     //generator of key
@@ -50,11 +67,11 @@ impl EncryptDecryptObject {
     }
     
    //calcula el porcentaje de bloques procesados
-   fn porcent_of_process_unit(&self, tam: usize) {
-	let message = "[ARCHIVE CRYPT]: *BLOCKS*";
+   fn porcent_of_process_unit(&mut self, tam: usize) {
+	let message = "[AESFE]: *BLOCKS*";
 	let colorMes = message.blue();
 	let mut result = (tam * 100) / self.blocks.len();
-	println!("{} {:?} %", colorMes, result);
+	print!("{} {:?} %", colorMes, result);
     }
     
     /*function create to encrypt*/
@@ -62,7 +79,7 @@ impl EncryptDecryptObject {
 
 	//load key
 	self.key = Self::generate_random_key();
-	println!("{:?}",&self.key);
+	
 	// Initialize cipher
 	let cipher = Aes128::new(&self.key);
 	//we create a vec for allocate the cipher blocks
@@ -96,22 +113,40 @@ impl EncryptDecryptObject {
 fn main() {
     //definicion la instancia del objeto encriptador decriptador
     let mut estructura = EncryptDecryptObject::new();
-
+    let mut text1 = "[AESFE]: ***TEXT PART***";
+    let mut text2 =  "[AESFE]: ***KEY*** -> ";
+    let arg2 =  env::args().nth(2);
+    let name_text: &str = arg2.as_deref().unwrap_or_default();
+    
     //tomamos los valores de los argumentos
     match env::args().nth(1).as_deref() {
 	Some("-e")  => {
+	    //init the process to part the archive in blocks
+	    match estructura.open_file(name_text) {
+		Ok(blocks) => {
+		    for block in blocks {
+			println!( "{} - {:?}",text1.green(), block);
+		    }
+		}
+		Err(err) => {
+		    eprintln!("[AESFE]: Error al procesar el archivo: {}", err);
+		}
+	    }
+	    
+	    //init the process to encypt the blocks archive
 	    match estructura.encrypt() {
 		Ok(encrypted_blocks) => {
 		    
 		    //pocesa el total de los bloques
 		    let mut cont: usize = 0;
 		    for block in &encrypted_blocks {
-			println!("[ARCHIVE CRYPT]: Cipher Block: {:?}", block);
 			estructura.porcent_of_process_unit(cont);
+			println!(" - Cipher Block: {:?}", block);
 			cont += 1;
 		    }
+		    println!("{} {:?}",text2.red(),estructura.key);
 		} Err(err) => {
-	    	    println!("[ARCHIVE CRYPT]: ERROR in cipher process: {:?}", err);
+	    	    println!("[AESFE]: ERROR in cipher process: {:?}", err);
 		}
 	    }
 	},
@@ -119,15 +154,15 @@ fn main() {
 	    
 	},
 	Some(_) => {
-	    let message_error = "[ARCHIVE CRYPT]: ***ERROR*** no have args corrects";
+	    let message_error = "[AESFE]: ***ERROR*** no have args corrects";
 	    let color_mess = message_error.red();
 	    println!("{}", color_mess);
 	},
 	None => {
-	    println!("[ARCHIVE CRYPT] ***ERROR*** not args");
-	    println!("[ARCHIVE CRYPT] --> key: {:?}",estructura.key);
-	    println!("[ARCHIVE CRYPT] --> block: {:?}",estructura.block);
-	    println!("[ARCHIVE CRYPT] --> blocks: {:?}",estructura.blocks);
+	    println!("[AESFE] ***ERROR*** not args");
+	    println!("[AESFE] --> key: {:?}",estructura.key);
+	    println!("[AESFE] --> block: {:?}",estructura.block);
+	    println!("[AESFE] --> blocks: {:?}",estructura.blocks);
 	}
     }
 }
