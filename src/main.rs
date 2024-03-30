@@ -82,9 +82,14 @@ impl EncryptDecryptObject {
 	
 	// Initialize cipher
 	let cipher = Aes128::new(&self.key);
+
+	// Create or open the output file in write mode
+        let mut output_file = File::create("bin_output.bin")?;
+
 	//we create a vec for allocate the cipher blocks
 	let mut encrypted_blocks = Vec::new();
 	let mut cont: usize = 0;
+
 	//cipher each block of data
 	for _block in &self.blocks {
 
@@ -100,13 +105,15 @@ impl EncryptDecryptObject {
 	    let mut encrypted_data =GenericArray::clone_from_slice(&padded_block[..]);
 	    cipher.encrypt_block(&mut encrypted_data);
 	    encrypted_blocks.push(encrypted_data.to_vec());
+
+	    // Write the encrypted block to the output file
+            output_file.write_all(&encrypted_data)?;
 	}
+	
 	Ok(encrypted_blocks)
     }
 
-  /*  fn decrypt(&self) {
-
-    }*/
+ 
 }
 
 /*main function*/
@@ -151,7 +158,7 @@ fn main() {
 	    }
 	},
 	Some("-d") => {
-	    
+	  
 	},
 	Some(_) => {
 	    let message_error = "[AESFE]: ***ERROR*** no have args corrects";
